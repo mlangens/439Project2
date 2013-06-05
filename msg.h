@@ -23,9 +23,11 @@ typedef struct {
 } ClientMessage; /* an unsigned int is 32 bits = 4 bytes */
 
 typedef struct {
-	enum {New, Old, No_Message} messageType; /* same size as an unsigned int */
-		unsigned int SenderId; /* unique client identifier */
-		unsigned int RecipientId; /* unique client identifier */
-		char message[100];
-	} ServerMessage; /* an unsigned int is 32 bits = 4 bytes */
+	enum {
+		New, Old, No_Message
+	} messageType; /* same size as an unsigned int */
+	unsigned int SenderId; /* unique client identifier */
+	unsigned int RecipientId; /* unique client identifier */
+	char message[100];
+} ServerMessage; /* an unsigned int is 32 bits = 4 bytes */
 #endif //_MSG_H
