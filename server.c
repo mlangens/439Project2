@@ -13,7 +13,7 @@
 #define MAXPENDING 5    /* Maximum outstanding connection requests */
 
 void DieWithError(char *errorMessage); /* Error handling function */
-void HandleTCPClient(int clntSocket); /* TCP client handling function */
+void HandleTCPClient(int clntSocket, struct queue *q); /* TCP client handling function */
 
 int SetupTCPServerSocket(const char *service) {
 	// Construct the server address structure
