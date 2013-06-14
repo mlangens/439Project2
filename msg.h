@@ -16,10 +16,12 @@ int AcceptTCPConnection(int servSock); /* Accept TCP connection request */
 
 struct queue {
 	int elements;
-	struct message {
-		char msg[100];
-		uint32_t type;
-	}[5];
+	struct message[5];
+};
+
+struct message {
+	char msg[100];
+	uint32_t type;
 };
 
 typedef struct {

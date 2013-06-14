@@ -32,8 +32,7 @@ int SetupTCPServerSocket(const char *service) {
 		DieWithError("getaddrinfo() failed");
 
 	int servSock = -1;
-	for (addr = servAddr; addr != NULL ; addr =
-			addr->ai_next) {
+	for (addr = servAddr; addr != NULL ; addr = addr->ai_next) {
 		// Create a TCP socket
 		servSock = socket(addr->ai_family, addr->ai_socktype,
 				addr->ai_protocol);
@@ -120,7 +119,8 @@ int main(int argc, char *argv[]) {
 	int servSock = SetupTCPServerSocket(service);
 	if (servSock < 0)
 		DieWithError("SetupTCPServerSocket() failed");
-	q = mmap(NULL, sizeof(struct queue) * 32, PROT_READ|PROT_WRITE, MAP_SHARED|MAP_ANON, -1, 0);
+	q = mmap(NULL, sizeof(struct queue) * 32, PROT_READ | PROT_WRITE,
+			MAP_SHARED | MAP_ANON, -1, 0);
 	unsigned int childProcCount = 0; // Number of child processes
 	for (;;) { // Run forever
 		// New connection creates a client socket
