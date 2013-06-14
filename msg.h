@@ -14,14 +14,14 @@ void HandleTCPClient(int clntSocket); /* TCP client handling function */
 int CreateTCPServerSocket(unsigned short port); /* Create TCP server socket */
 int AcceptTCPConnection(int servSock); /* Accept TCP connection request */
 
-struct queue {
-	int elements;
-	struct message[5];
-};
-
 struct message {
 	char msg[100];
 	uint32_t type;
+};
+
+struct queue {
+	int elements;
+	struct message m[5];
 };
 
 typedef struct {
