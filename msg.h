@@ -10,7 +10,6 @@
 #include <stdint.h>
 
 void DieWithError(char *errorMessage); /* Error handling function */
-void HandleTCPClient(int clntSocket, struct queue *q); /* TCP client handling function */
 int CreateTCPServerSocket(unsigned short port); /* Create TCP server socket */
 int AcceptTCPConnection(int servSock); /* Accept TCP connection request */
 
@@ -23,6 +22,8 @@ struct queue {
 	int elements;
 	struct message m[5];
 };
+
+void HandleTCPClient(int clntSocket, struct queue *q); /* TCP client handling function */
 
 typedef struct {
 	enum {
