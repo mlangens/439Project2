@@ -13,7 +13,25 @@
 #define MAXPENDING 5    /* Maximum outstanding connection requests */
 
 void DieWithError(char *errorMessage); /* Error handling function */
-void HandleTCPClient(int clntSocket, struct queue *q); /* TCP client handling function */
+void HandleTCPClient(int clntSocket, int clientId, struct queue *q); /* TCP client handling function */
+
+ssize_t getClientMessage(int clntSocket, ClientMessage *data) {
+	ssize_t numBytesRcvd;
+	numBytesRcvd = recv(clntSocket, data, sizeof(ClientMessage), 0);
+	data->request_Type = ntohl(data->request_Type);
+	data->SenderId = ntohl(data->SenderId);
+	data->RecipientId = ntohl(data->RecipientId);
+	return numBytesRcvd;
+}
+
+ssize_t sendServerMessage(int clntSocket, ServerMessage *data) {
+	ssize_t numBytesSent;
+	numBytesSent = recv(clntSocket, data, sizeof(ServerMessage), 0);
+	data->messageType = htonl(data->messageType);
+	data->SenderId = htonl(data->SenderId);
+	data->RecipientId = htonl(data->RecipientId);
+	return numBytesSent;
+}
 
 int SetupTCPServerSocket(const char *service) {
 	// Construct the server address structure
@@ -84,29 +102,70 @@ int AcceptTCPConnection(int servSock) {
 	return clntSock;
 }
 
-void HandleTCPClient(int clntSocket, struct queue *q) {
-	char buffer[4096]; // Buffer for echo string
-
+void HandleTCPClient(int clntSocket, int clientId, struct queue *q) {
+	ClientMessage incomingMessage;
+	struct queue *queue;
+	ServerMessage outgoingMessage;
+	int i;
+	ssize_t numBytesRcvd;
 	// Receive message from client
-	ssize_t numBytesRcvd = recv(clntSocket, buffer, 4096, 0);
-	if (numBytesRcvd < 0)
-		DieWithError("recv() failed");
-
-	// Send received string and receive again until end of stream
-	while (numBytesRcvd > 0) { // 0 indicates end of stream
-		// Echo message back to client
-		ssize_t numBytesSent = send(clntSocket, buffer, numBytesRcvd, 0);
-		if (numBytesSent < 0)
-			DieWithError("send() failed");
-		else if (numBytesSent != numBytesRcvd)
-			DieWithError("send() sent unexpected number of bytes");
-
-		// See if there is more data to receive
-		numBytesRcvd = recv(clntSocket, buffer, 4096, 0);
+	// Initial handshake msg
+	outgoingMessage.messageType = Server_Handshake;
+	outgoingMessage.SenderId = clientId;
+	outgoingMessage.RecipientId = 0xDEADBEEF;
+	sendServerMessage(clntSocket, &outgoingMessage);
+	//ack from client
+	getClientMessage(clntSocket, &incomingMessage);
+	if (incomingMessage.request_Type != Client_Handshake
+			|| incomingMessage.RecipientId != clientId
+			|| incomingMessage.SenderId != 0xDEADBEEF)
+		DieWithError("handshake failed");
+	for (;;) {
+		numBytesRcvd = getClientMessage(clntSocket, &incomingMessage);
 		if (numBytesRcvd < 0)
 			DieWithError("recv() failed");
+		if (incomingMessage.request_Type == Send) {
+			queue = &q[incomingMessage.RecipientId];
+			strncpy(queue->m[queue->elements].msg, incomingMessage.message,
+					100);
+			queue->m[queue->elements].type = New;
+			//wrap around queue
+			queue->elements = (queue->elements + 1) % 5;
+		} else {
+			queue = &q[incomingMessage.SenderId];
+			if (queue->elements != 0) {
+				for (i = 0; i < queue->elements; ++i) {
+					outgoingMessage.messageType = queue->m[i].type;
+					outgoingMessage.RecipientId = incomingMessage.SenderId;
+					outgoingMessage.SenderId = incomingMessage.RecipientId;
+					strncpy(outgoingMessage.message, queue->m[i].msg, 100);
+					sendServerMessage(clntSocket, &outgoingMessage);
+				}
+				queue->elements = 0;
+			} else {
+				outgoingMessage.messageType = No_Message;
+				outgoingMessage.RecipientId = incomingMessage.SenderId;
+				outgoingMessage.SenderId = incomingMessage.RecipientId;
+				sendServerMessage(clntSocket, &outgoingMessage);
+			}
+		}
 	}
+	/*
+	 // Send received string and receive again until end of stream
+	 while (numBytesRcvd > 0) { // 0 indicates end of stream
+	 // Echo message back to client
+	 ssize_t numBytesSent = send(clntSocket, buffer, numBytesRcvd, 0);
+	 if (numBytesSent < 0)
+	 DieWithError("send() failed");
+	 else if (numBytesSent != numBytesRcvd)
+	 DieWithError("send() sent unexpected number of bytes");
 
+	 // See if there is more data to receive
+	 numBytesRcvd = recv(clntSocket, buffer, 4096, 0);
+	 if (numBytesRcvd < 0)
+	 DieWithError("recv() failed");
+	 }
+	 */
 	close(clntSocket); // Close client socket
 }
 
@@ -131,7 +190,7 @@ int main(int argc, char *argv[]) {
 			DieWithError("fork() failed");
 		else if (processID == 0) { // If this is the child process
 			close(servSock);         // Child closes parent socket
-			HandleTCPClient(clntSock, q);
+			HandleTCPClient(clntSock, childProcCount, q);
 			exit(0);                 // Child process terminates
 		}
 

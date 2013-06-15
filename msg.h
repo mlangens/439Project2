@@ -9,10 +9,6 @@
 #include <unistd.h>     /* for close() */
 #include <stdint.h>
 
-void DieWithError(char *errorMessage); /* Error handling function */
-int CreateTCPServerSocket(unsigned short port); /* Create TCP server socket */
-int AcceptTCPConnection(int servSock); /* Accept TCP connection request */
-
 struct message {
 	char msg[100];
 	uint32_t type;
@@ -23,23 +19,22 @@ struct queue {
 	struct message m[5];
 };
 
-void HandleTCPClient(int clntSocket, struct queue *q); /* TCP client handling function */
-
 typedef struct {
 	enum {
-		Send, Retrieve
+		Client_Handshake, Send, Retrieve
 	} request_Type; /* same size as an unsigned int */
-	unsigned int SenderId; /* unique client identifier */
-	unsigned int RecipientId; /* unique client identifier */
+	uint32_t SenderId; /* unique client identifier */
+	uint32_t RecipientId; /* unique client identifier */
 	char message[100];
 } ClientMessage; /* an unsigned int is 32 bits = 4 bytes */
 
 typedef struct {
 	enum {
-		New, Old, No_Message
+		Server_Handshake, New, Old, No_Message
 	} messageType; /* same size as an unsigned int */
-	unsigned int SenderId; /* unique client identifier */
-	unsigned int RecipientId; /* unique client identifier */
+	uint32_t SenderId; /* unique client identifier */
+	uint32_t RecipientId; /* unique client identifier */
 	char message[100];
 } ServerMessage; /* an unsigned int is 32 bits = 4 bytes */
+
 #endif //_MSG_H
