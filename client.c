@@ -5,72 +5,107 @@
 #include <string.h>     /* for memset() */
 #include <unistd.h>     /* for close() */
 
+#include "msg.h"
+
 #define RCVBUFSIZE 32   /* Size of receive buffer */
 
 void DieWithError(char *errorMessage); /* Error handling function */
 
+ssize_t getServerMessage(int clntSocket, ServerMessage *data) {
+	ssize_t numBytesRcvd;
+	numBytesRcvd = recv(clntSocket, data, sizeof(ServerMessage), 0);
+	data->messageType = ntohl(data->messageType);
+	data->SenderId = ntohl(data->SenderId);
+	data->RecipientId = ntohl(data->RecipientId);
+	return numBytesRcvd;
+}
+
+ssize_t sendClientMessage(int clntSocket, ClientMessage *data) {
+	ssize_t numBytesSent;
+	data->request_Type = htonl(data->request_Type);
+	data->SenderId = htonl(data->SenderId);
+	data->RecipientId = htonl(data->RecipientId);
+	numBytesSent = send(clntSocket, data, sizeof(ClientMessage), 0);
+	return numBytesSent;
+}
+
 int main(int argc, char *argv[]) {
 	int sock; /* Socket descriptor */
-	struct sockaddr_in echoServAddr; /* Echo server address */
-	unsigned short echoServPort; /* Echo server port */
+	int recipientId;
+	char ch;
+	char buffer[100];
+	struct sockaddr_in chatServAddr; /* Echo server address */
+	unsigned short chatServPort; /* Echo server port */
 	char *servIP; /* Server IP address (dotted quad) */
-	char *echoString; /* String to send to echo server */
-	char echoBuffer[RCVBUFSIZE]; /* Buffer for echo string */
-	unsigned int echoStringLen; /* Length of string to echo */
+	struct timeval timeout;
+	fd_set readfds;
+	uint32_t clientId;
+	ClientMessage outgoingMessage;
+	ServerMessage incomingMessage;
 	int bytesRcvd, totalBytesRcvd; /* Bytes read in single recv()
 	 and total bytes read */
 
 	if ((argc < 3) || (argc > 4)) { /* Test for correct number of arguments */
-		fprintf(stderr, "Usage: %s <Server IP> <Echo Word> [<Echo Port>]\n",
-				argv[0]);
+		fprintf(stderr, "Usage: %s <User ID> <Server IP> [<Echo Port>]\n", argv[0]);
 		exit(1);
 	}
 
-	servIP = argv[1]; /* First arg: server IP address (dotted quad) */
-	echoString = argv[2]; /* Second arg: string to echo */
+	servIP = argv[2]; /* First arg: server IP address (dotted quad) */
+	recipientId = atoi(argv[1]);
 
 	if (argc == 4)
-		echoServPort = atoi(argv[3]); /* Use given port, if any */
+		chatServPort = atoi(argv[3]); /* Use given port, if any */
 	else
-		echoServPort = 7; /* 7 is the well-known port for the echo service */
+		chatServPort = 3333;
 
 	/* Create a reliable, stream socket using TCP */
 	if ((sock = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0)
 		DieWithError("socket() failed");
 
 	/* Construct the server address structure */
-	memset(&echoServAddr, 0, sizeof(echoServAddr));
+	memset(&chatServAddr, 0, sizeof(chatServAddr));
 	/* Zero out structure */
-	echoServAddr.sin_family = AF_INET; /* Internet address family */
-	echoServAddr.sin_addr.s_addr = inet_addr(servIP); /* Server IP address */
-	echoServAddr.sin_port = htons(echoServPort); /* Server port */
+	chatServAddr.sin_family = AF_INET; /* Internet address family */
+	chatServAddr.sin_addr.s_addr = inet_addr(servIP); /* Server IP address */
+	chatServAddr.sin_port = htons(chatServPort); /* Server port */
 
 	/* Establish the connection to the echo server */
-	if (connect(sock, (struct sockaddr *) &echoServAddr, sizeof(echoServAddr))
+	if (connect(sock, (struct sockaddr *) &chatServAddr, sizeof(chatServAddr))
 			< 0)
 		DieWithError("connect() failed");
-
-	echoStringLen = strlen(echoString); /* Determine input length */
-
-	/* Send the string to the server */
-	if (send(sock, echoString, echoStringLen, 0) != echoStringLen)
-		DieWithError("send() sent a different number of bytes than expected");
-
-	/* Receive the same string back from the server */
-	totalBytesRcvd = 0;
-	printf("Received: "); /* Setup to print the echoed string */
-	while (totalBytesRcvd < echoStringLen) {
-		/* Receive up to the buffer size (minus 1 to leave space for
-		 a null terminator) bytes from the sender */
-		if ((bytesRcvd = recv(sock, echoBuffer, RCVBUFSIZE - 1, 0)) <= 0)
-			DieWithError("recv() failed or connection closed prematurely");
-		totalBytesRcvd += bytesRcvd; /* Keep tally of total bytes */
-		echoBuffer[bytesRcvd] = '\0'; /* Terminate the string! */
-		printf("%s", echoBuffer); /* Print the echo buffer */
-	}
+	getServerMessage(sock, &incomingMessage);
+	printf("got handshake %d (%d) %x\n",incomingMessage.messageType, Server_Handshake , incomingMessage.RecipientId);
+	if(incomingMessage.messageType != Server_Handshake || incomingMessage.RecipientId != 0xDEADBEEF)
+		DieWithError("bad handshake");
+	outgoingMessage.RecipientId = clientId = incomingMessage.SenderId;
+	outgoingMessage.request_Type = Client_Handshake;
+	outgoingMessage.SenderId = 0xDEADBEEF;
+	sendClientMessage(sock, &outgoingMessage);
+	printf("my Id is %d\n", clientId);
 
 	printf("\n"); /* Print a final linefeed */
+	for(;;) {
+		printf("type your message: ");
+		fflush(stdout);
+		fgets(buffer, 100, stdin);
+		outgoingMessage.RecipientId = recipientId;
+		outgoingMessage.SenderId = clientId;
+		outgoingMessage.request_Type = Send;
+		strncpy(outgoingMessage.message, buffer, 100);
+		sendClientMessage(sock, &outgoingMessage);
 
+		outgoingMessage.RecipientId = recipientId;
+		outgoingMessage.SenderId = clientId;
+		outgoingMessage.request_Type = Retrieve;
+		sendClientMessage(sock, &outgoingMessage);
+
+		do {
+			getServerMessage(sock, &incomingMessage);
+			if (incomingMessage.messageType != No_Message) {
+				printf("%d: %s\n", recipientId, incomingMessage.message);
+			}
+		} while(incomingMessage.messageType != No_Message);
+	}
 	close(sock);
 	exit(0);
 }

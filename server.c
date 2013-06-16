@@ -26,10 +26,10 @@ ssize_t getClientMessage(int clntSocket, ClientMessage *data) {
 
 ssize_t sendServerMessage(int clntSocket, ServerMessage *data) {
 	ssize_t numBytesSent;
-	numBytesSent = recv(clntSocket, data, sizeof(ServerMessage), 0);
 	data->messageType = htonl(data->messageType);
 	data->SenderId = htonl(data->SenderId);
 	data->RecipientId = htonl(data->RecipientId);
+	numBytesSent = send(clntSocket, data, sizeof(ServerMessage), 0);
 	return numBytesSent;
 }
 
@@ -114,18 +114,21 @@ void HandleTCPClient(int clntSocket, int clientId, struct queue *q) {
 	outgoingMessage.SenderId = clientId;
 	outgoingMessage.RecipientId = 0xDEADBEEF;
 	sendServerMessage(clntSocket, &outgoingMessage);
+	printf("sent handshake\n");
 	//ack from client
 	getClientMessage(clntSocket, &incomingMessage);
 	if (incomingMessage.request_Type != Client_Handshake
 			|| incomingMessage.RecipientId != clientId
 			|| incomingMessage.SenderId != 0xDEADBEEF)
 		DieWithError("handshake failed");
+	printf("handshake completed for client %d\n", clientId);
 	for (;;) {
 		numBytesRcvd = getClientMessage(clntSocket, &incomingMessage);
 		if (numBytesRcvd < 0)
 			DieWithError("recv() failed");
 		if (incomingMessage.request_Type == Send) {
 			queue = &q[incomingMessage.RecipientId];
+			printf("Storing %d (%s)\n", incomingMessage.RecipientId, incomingMessage.message);
 			strncpy(queue->m[queue->elements].msg, incomingMessage.message,
 					100);
 			queue->m[queue->elements].type = New;
@@ -133,39 +136,20 @@ void HandleTCPClient(int clntSocket, int clientId, struct queue *q) {
 			queue->elements = (queue->elements + 1) % 5;
 		} else {
 			queue = &q[incomingMessage.SenderId];
-			if (queue->elements != 0) {
-				for (i = 0; i < queue->elements; ++i) {
-					outgoingMessage.messageType = queue->m[i].type;
-					outgoingMessage.RecipientId = incomingMessage.SenderId;
-					outgoingMessage.SenderId = incomingMessage.RecipientId;
-					strncpy(outgoingMessage.message, queue->m[i].msg, 100);
-					sendServerMessage(clntSocket, &outgoingMessage);
-				}
-				queue->elements = 0;
-			} else {
-				outgoingMessage.messageType = No_Message;
+			for (i = 0; i < queue->elements; ++i) {
+				outgoingMessage.messageType = queue->m[i].type;
 				outgoingMessage.RecipientId = incomingMessage.SenderId;
 				outgoingMessage.SenderId = incomingMessage.RecipientId;
+				strncpy(outgoingMessage.message, queue->m[i].msg, 100);
 				sendServerMessage(clntSocket, &outgoingMessage);
 			}
+			outgoingMessage.messageType = No_Message;
+			outgoingMessage.RecipientId = incomingMessage.SenderId;
+			outgoingMessage.SenderId = incomingMessage.RecipientId;
+			sendServerMessage(clntSocket, &outgoingMessage);
+			queue->elements = 0;
 		}
 	}
-	/*
-	 // Send received string and receive again until end of stream
-	 while (numBytesRcvd > 0) { // 0 indicates end of stream
-	 // Echo message back to client
-	 ssize_t numBytesSent = send(clntSocket, buffer, numBytesRcvd, 0);
-	 if (numBytesSent < 0)
-	 DieWithError("send() failed");
-	 else if (numBytesSent != numBytesRcvd)
-	 DieWithError("send() sent unexpected number of bytes");
-
-	 // See if there is more data to receive
-	 numBytesRcvd = recv(clntSocket, buffer, 4096, 0);
-	 if (numBytesRcvd < 0)
-	 DieWithError("recv() failed");
-	 }
-	 */
 	close(clntSocket); // Close client socket
 }
 
