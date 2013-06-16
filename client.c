@@ -4,6 +4,8 @@
 #include <stdlib.h>     /* for atoi() and exit() */
 #include <string.h>     /* for memset() */
 #include <unistd.h>     /* for close() */
+#include <readline/readline.h>
+#include <readline/history.h>
 
 #include "msg.h"
 
@@ -29,11 +31,15 @@ ssize_t sendClientMessage(int clntSocket, ClientMessage *data) {
 	return numBytesSent;
 }
 
+int do_retreive_messages() {
+	return 0;
+}
+
 int main(int argc, char *argv[]) {
 	int sock; /* Socket descriptor */
 	int recipientId;
 	char ch;
-	char buffer[100];
+	char* buffer = NULL;
 	struct sockaddr_in chatServAddr; /* Echo server address */
 	unsigned short chatServPort; /* Echo server port */
 	char *servIP; /* Server IP address (dotted quad) */
@@ -83,11 +89,16 @@ int main(int argc, char *argv[]) {
 	sendClientMessage(sock, &outgoingMessage);
 	printf("my Id is %d\n", clientId);
 
-	printf("\n"); /* Print a final linefeed */
+	//rl_set_keyboard_input_timeout(10000);
+	//rl_event_hook = do_retreive_messages;
 	for(;;) {
-		printf("type your message: ");
-		fflush(stdout);
-		fgets(buffer, 100, stdin);
+		free(buffer);
+		buffer = readline("Type your message: ");
+		if (buffer == NULL || *buffer == '\0')
+			continue;
+		if(strcmp(buffer, "quit") == 0)
+			break;
+		add_history(buffer);
 		outgoingMessage.RecipientId = recipientId;
 		outgoingMessage.SenderId = clientId;
 		outgoingMessage.request_Type = Send;
@@ -106,6 +117,7 @@ int main(int argc, char *argv[]) {
 			}
 		} while(incomingMessage.messageType != No_Message);
 	}
+	free(buffer);
 	close(sock);
 	exit(0);
 }
