@@ -52,7 +52,8 @@ int main(int argc, char *argv[]) {
 	 and total bytes read */
 
 	if ((argc < 3) || (argc > 4)) { /* Test for correct number of arguments */
-		fprintf(stderr, "Usage: %s <User ID> <Server IP> [<Echo Port>]\n", argv[0]);
+		fprintf(stderr, "Usage: %s <User ID> <Server IP> [<Echo Port>]\n",
+				argv[0]);
 		exit(1);
 	}
 
@@ -80,8 +81,10 @@ int main(int argc, char *argv[]) {
 			< 0)
 		DieWithError("connect() failed");
 	getServerMessage(sock, &incomingMessage);
-	printf("got handshake %d (%d) %x\n",incomingMessage.messageType, Server_Handshake , incomingMessage.RecipientId);
-	if(incomingMessage.messageType != Server_Handshake || incomingMessage.RecipientId != 0xDEADBEEF)
+	printf("got handshake %d (%d) %x\n", incomingMessage.messageType,
+			Server_Handshake, incomingMessage.RecipientId);
+	if (incomingMessage.messageType != Server_Handshake
+			|| incomingMessage.RecipientId != 0xDEADBEEF)
 		DieWithError("bad handshake");
 	outgoingMessage.RecipientId = clientId = incomingMessage.SenderId;
 	outgoingMessage.request_Type = Client_Handshake;
@@ -91,12 +94,12 @@ int main(int argc, char *argv[]) {
 
 	//rl_set_keyboard_input_timeout(10000);
 	//rl_event_hook = do_retreive_messages;
-	for(;;) {
+	for (;;) {
 		free(buffer);
 		buffer = readline("Type your message: ");
 		if (buffer == NULL || *buffer == '\0')
 			continue;
-		if(strcmp(buffer, "quit") == 0)
+		if (strcmp(buffer, "quit") == 0)
 			break;
 		add_history(buffer);
 		outgoingMessage.RecipientId = recipientId;
@@ -115,7 +118,7 @@ int main(int argc, char *argv[]) {
 			if (incomingMessage.messageType != No_Message) {
 				printf("%d: %s\n", recipientId, incomingMessage.message);
 			}
-		} while(incomingMessage.messageType != No_Message);
+		} while (incomingMessage.messageType != No_Message);
 	}
 	free(buffer);
 	close(sock);

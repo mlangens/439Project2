@@ -128,7 +128,8 @@ void HandleTCPClient(int clntSocket, int clientId, struct queue *q) {
 			DieWithError("recv() failed");
 		if (incomingMessage.request_Type == Send) {
 			queue = &q[incomingMessage.RecipientId];
-			printf("Storing %d (%s)\n", incomingMessage.RecipientId, incomingMessage.message);
+			printf("Storing %d (%s)\n", incomingMessage.RecipientId,
+					incomingMessage.message);
 			strncpy(queue->m[queue->elements].msg, incomingMessage.message,
 					100);
 			queue->m[queue->elements].type = New;
