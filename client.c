@@ -93,20 +93,24 @@ int main(int argc, char *argv[]) {
 		buffer = readline("Type your message: ");
 		if (buffer == NULL || *buffer == '\0')
 			continue;
+		//quit message
 		if (strcmp(buffer, "quit") == 0)
 			break;
 		add_history(buffer);
+		//populate outgoing message
 		outgoingMessage.RecipientId = recipientId;
 		outgoingMessage.SenderId = clientId;
 		outgoingMessage.request_Type = Send;
 		strncpy(outgoingMessage.message, buffer, 100);
 		sendClientMessage(sock, &outgoingMessage);
 
+		//check for new messages
 		outgoingMessage.RecipientId = recipientId;
 		outgoingMessage.SenderId = clientId;
 		outgoingMessage.request_Type = Retrieve;
 		sendClientMessage(sock, &outgoingMessage);
 
+		//get new messages as long as they are there
 		do {
 			getServerMessage(sock, &incomingMessage);
 			if (incomingMessage.messageType != No_Message) {

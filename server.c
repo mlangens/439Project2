@@ -15,6 +15,7 @@
 void DieWithError(char *errorMessage); /* Error handling function */
 void HandleTCPClient(int clntSocket, int clientId, struct queue *q); /* TCP client handling function */
 
+//populate struct and change byte order
 ssize_t getClientMessage(int clntSocket, ClientMessage *data) {
 	ssize_t numBytesRcvd;
 	numBytesRcvd = recv(clntSocket, data, sizeof(ClientMessage), 0);
@@ -24,6 +25,7 @@ ssize_t getClientMessage(int clntSocket, ClientMessage *data) {
 	return numBytesRcvd;
 }
 
+//populate struct and change byte order
 ssize_t sendServerMessage(int clntSocket, ServerMessage *data) {
 	ssize_t numBytesSent;
 	data->messageType = htonl(data->messageType);
@@ -33,6 +35,7 @@ ssize_t sendServerMessage(int clntSocket, ServerMessage *data) {
 	return numBytesSent;
 }
 
+//borrowed from sample code
 int SetupTCPServerSocket(const char *service) {
 	// Construct the server address structure
 	struct addrinfo addrCriteria;                  // Criteria for address match
@@ -82,6 +85,7 @@ int SetupTCPServerSocket(const char *service) {
 	return servSock;
 }
 
+//borrowed from sample code
 int AcceptTCPConnection(int servSock) {
 	struct sockaddr_storage clntAddr; // Client address
 	// Set length of client address structure (in-out parameter)
@@ -102,6 +106,7 @@ int AcceptTCPConnection(int servSock) {
 	return clntSock;
 }
 
+//somewhat borrowed from sample code
 void HandleTCPClient(int clntSocket, int clientId, struct queue *q) {
 	ClientMessage incomingMessage;
 	struct queue *queue;
@@ -109,7 +114,7 @@ void HandleTCPClient(int clntSocket, int clientId, struct queue *q) {
 	int i;
 	ssize_t numBytesRcvd;
 	// Receive message from client
-	// Initial handshake msg
+	// Initial handshake msg, for purposes of telling the client their ID
 	outgoingMessage.messageType = Server_Handshake;
 	outgoingMessage.SenderId = clientId;
 	outgoingMessage.RecipientId = 0xDEADBEEF;
@@ -122,28 +127,32 @@ void HandleTCPClient(int clntSocket, int clientId, struct queue *q) {
 			|| incomingMessage.SenderId != 0xDEADBEEF)
 		DieWithError("handshake failed");
 	printf("handshake completed for client %d\n", clientId);
+
 	for (;;) {
 		numBytesRcvd = getClientMessage(clntSocket, &incomingMessage);
 		if (numBytesRcvd < 0)
 			DieWithError("recv() failed");
 		if (incomingMessage.request_Type == Send) {
 			queue = &q[incomingMessage.RecipientId];
+			//feedback on recieved message in server console
 			printf("Storing %d (%s)\n", incomingMessage.RecipientId,
 					incomingMessage.message);
 			strncpy(queue->m[queue->elements].msg, incomingMessage.message,
 					100);
 			queue->m[queue->elements].type = New;
-			//wrap around queue
+			//wrap around queue of messages
 			queue->elements = (queue->elements + 1) % 5;
 		} else {
 			queue = &q[incomingMessage.SenderId];
 			for (i = 0; i < queue->elements; ++i) {
+				//populate outgoing message struct
 				outgoingMessage.messageType = queue->m[i].type;
 				outgoingMessage.RecipientId = incomingMessage.SenderId;
 				outgoingMessage.SenderId = incomingMessage.RecipientId;
 				strncpy(outgoingMessage.message, queue->m[i].msg, 100);
 				sendServerMessage(clntSocket, &outgoingMessage);
 			}
+			//reached when there are no more outgoing messages
 			outgoingMessage.messageType = No_Message;
 			outgoingMessage.RecipientId = incomingMessage.SenderId;
 			outgoingMessage.SenderId = incomingMessage.RecipientId;
@@ -154,6 +163,7 @@ void HandleTCPClient(int clntSocket, int clientId, struct queue *q) {
 	close(clntSocket); // Close client socket
 }
 
+//borrowed from fork sample code
 int main(int argc, char *argv[]) {
 	struct queue *q;
 	if (argc != 2) // Test for correct number of arguments
