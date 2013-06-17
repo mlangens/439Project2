@@ -31,10 +31,6 @@ ssize_t sendClientMessage(int clntSocket, ClientMessage *data) {
 	return numBytesSent;
 }
 
-int do_retreive_messages() {
-	return 0;
-}
-
 int main(int argc, char *argv[]) {
 	int sock; /* Socket descriptor */
 	int recipientId;
@@ -92,8 +88,6 @@ int main(int argc, char *argv[]) {
 	sendClientMessage(sock, &outgoingMessage);
 	printf("my Id is %d\n", clientId);
 
-	//rl_set_keyboard_input_timeout(10000);
-	//rl_event_hook = do_retreive_messages;
 	for (;;) {
 		free(buffer);
 		buffer = readline("Type your message: ");
